@@ -1,0 +1,41 @@
+name: Close Done Issues for Any Repo
+
+on:
+  project_card:
+    types:
+      - moved
+
+jobs:
+  close_issue:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Install jq
+      run: sudo apt-get install -y jq
+
+    - name: Fetch Columns and Close Issue if Moved to Done
+      run: |
+        # Fetch project ID from the event payload
+        project_id=$(jq --raw-output '.project_card.project_id' "$GITHUB_EVENT_PATH")
+
+        # Fetch all columns for the project
+        columns=$(curl -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Accept: application/vnd.github.inertia-preview+json" \
+          "https://api.github.com/projects/$project_id/columns")
+
+        # Find the column ID for the "Done" column
+        done_column_id=$(echo "$columns" | jq 'map(select(.name=="Done")) | .[0].id')
+
+        # Fetch the current column ID from the event payload
+        column_id=$(jq --raw-output '.project_card.column_id' "$GITHUB_EVENT_PATH")
+
+        # If the issue was moved to "Done", close it
+        if [[ "$column_id" == "$done_column_id" ]]; then
+          issue_number=$(jq --raw-output '.project_card.content_url | split("/")[7]' "$GITHUB_EVENT_PATH")
+          curl -X PATCH -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+               -H "Accept: application/vnd.github.v3+json" \
+               "https://api.github.com/repos/$GITHUB_REPOSITORY/issues/$issue_number" \
+               -d '{"state": "closed"}'
+        fi
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
