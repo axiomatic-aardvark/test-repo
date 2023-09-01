@@ -1,52 +1,16 @@
-name: Debug - Close Done Issues for Any Repo
+name: "Issue States"
 
 on:
   project_card:
-    types:
-      - moved
-  workflow_dispatch: # This allows you to manually trigger the action
+    types: [created, edited, moved]
+
+permissions:
+  repository-projects: read
+  issues: write
+  pull-requests: write
 
 jobs:
-  close_issue:
+  action:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Install jq
-        run: sudo apt-get install -y jq
-
-      - name: Fetch Columns and Close Issue if Moved to Done
-        run: |
-          echo "Debugging..."
-
-          # Debug: Display the event payload
-          cat "$GITHUB_EVENT_PATH"
-
-          # Fetch project ID from the event payload
-          project_id=$(jq --raw-output '.project_card.project_id' "$GITHUB_EVENT_PATH")
-          echo "Project ID: $project_id"
-
-          # Fetch all columns for the project
-          columns=$(curl -H "Authorization: token ${{ secrets.MY_TOKEN }}" \
-            -H "Accept: application/vnd.github.inertia-preview+json" \
-            "https://api.github.com/projects/$project_id/columns")
-
-          echo "Columns: $columns"
-
-          # Find the column ID for the "Done" column
-          done_column_id=$(echo "$columns" | jq 'map(select(.name=="Done")) | .[0].id')
-          echo "Done Column ID: $done_column_id"
-
-          # Fetch the current column ID from the event payload
-          column_id=$(jq --raw-output '.project_card.column_id' "$GITHUB_EVENT_PATH")
-          echo "Current Column ID: $column_id"
-
-          # If the issue was moved to "Done", close it
-          if [[ "$column_id" == "$done_column_id" ]]; then
-            issue_number=$(jq --raw-output '.project_card.content_url | split("/")[7]' "$GITHUB_EVENT_PATH")
-            curl -X PATCH -H "Authorization: token ${{ secrets.MY_TOKEN }}" \
-                 -H "Accept: application/vnd.github.v3+json" \
-                 "https://api.github.com/repos/$GITHUB_REPOSITORY/issues/$issue_number" \
-                 -d '{"state": "closed"}'
-          fi
-        env:
-          MY_TOKEN: ${{ secrets.MY_TOKEN }}
+      - uses: dessant/issue-states@v3
