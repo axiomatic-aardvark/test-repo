@@ -4,6 +4,8 @@ on:
   project_card:
     types:
       - moved
+  workflow_dispatch:  # Add this line to enable manual triggering
+
 
 jobs:
   close_issue:
